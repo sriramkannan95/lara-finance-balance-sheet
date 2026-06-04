@@ -2164,3 +2164,63 @@ body.readonly .auth-bar {
     white-space: nowrap;
   }
 }
+
+/* ============================================================
+   Fixed Payments — Cycle Boundary Sections
+   ============================================================ */
+
+.fp-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 4px;
+}
+
+.fp-section-label:not(:first-child) {
+  margin-top: 12px;
+}
+
+.fp-section-icon {
+  font-size: 0.85rem;
+}
+
+.boundary-item {
+  border-left: 3px solid var(--accent);
+  background: rgba(139, 92, 246, 0.04);
+}
+
+.carry-forward-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  margin: 4px 8px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed rgba(255,255,255,0.08);
+  font-size: 0.78rem;
+}
+
+.carry-label {
+  color: var(--text-muted);
+}
+
+.carry-value {
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+}
+
+.carry-value.positive {
+  color: var(--success);
+}
+
+.carry-value.negative {
+  color: var(--danger);
+}

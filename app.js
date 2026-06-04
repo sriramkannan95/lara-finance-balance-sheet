@@ -20,7 +20,8 @@ import {
 // ---------------------------------------------------------------------------
 const DEFAULT_SETTINGS = {
   safetyBuffer: 20000,
-  defaultSalary: 142000
+  defaultSalary: 142000,
+  defaultEMI: 70000
 };
 
 const STORAGE_KEY = 'cashflow_pulse_data';
@@ -190,14 +191,14 @@ function animateValue(element, start, end, duration) {
  * Generate recurring monthly transactions for a given year/month (0-indexed).
  */
 function generateMonthlyTemplate(year, month) {
-  // NOTE: Salary is NOT included here — it is already baked into the
-  // "Bank Balance" input (which represents balance after prev-month salary).
+  // NOTE: Salary and House EMI are NOT transactions — they happen at the
+  // cycle boundary (end of month) and belong to the NEXT month's cycle.
+  // They are tracked as nextSalary / nextEMI in the month data.
   const transactions = [
     { id: 'lavanya', day: 1, description: 'Lavanya Contribution', billDate: null, category: 'Income', type: 'inflow', amount: 35000, editable: true, isFixed: true },
     { id: 'idfc', day: 3, description: 'IDFC Card Auto-Pay', billDate: '22nd prev month', billGenDay: 22, billGenMonth: 'prev', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'sbi_sriram', day: 4, description: 'SBI Sriram Auto-Pay', billDate: '18th prev month', billGenDay: 18, billGenMonth: 'prev', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'dad', day: 5, description: 'Dad Allowance', billDate: null, category: 'Income', type: 'inflow', amount: 40000, editable: true, isFixed: true },
-    { id: 'emi', day: 31, description: 'House EMI', billDate: null, category: 'Debt', type: 'outflow', amount: 70000, editable: true, isFixed: true },
     { id: 'sips', day: 12, description: 'SIPs', billDate: null, category: 'Investment', type: 'outflow', amount: 10000, editable: true, isFixed: true },
     { id: 'rd', day: 17, description: 'Recurring Deposit', billDate: null, category: 'Investment', type: 'outflow', amount: 3900, editable: true, isFixed: true },
     { id: 'icici', day: 17, description: 'ICICI Cards Auto-Pay', billDate: '2nd curr month', billGenDay: 2, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
@@ -357,39 +358,55 @@ class CashFlowApp {
   }
 
   /**
-   * Migrate existing months: remove salary transactions, fix EMI/RD dates.
+   * Migrate existing months: remove salary & EMI transactions (they are now
+   * cycle-boundary items stored as nextSalary / nextEMI), and fix RD dates.
    */
   migrateData() {
     if (!this.state || !this.state.months) return;
 
     let modified = false;
+    const defSalary = this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary;
+    const defEMI = this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI;
 
     Object.keys(this.state.months).forEach(monthKey => {
       const monthData = this.state.months[monthKey];
       if (!monthData || !monthData.transactions) return;
 
-      const [year, month] = monthKey.split('-').map(Number); // month is 1-indexed (1-12)
-      const m0 = month - 1; // 0-indexed month
-      const daysInMonth = getDaysInMonth(year, m0);
+      const [year, month] = monthKey.split('-').map(Number);
 
-      // Remove salary transaction — it's now implicit in bank balance
+      // Extract EMI amount before removing, so we preserve any user edits
+      const emiTx = monthData.transactions.find(tx => tx.id === 'emi');
+      if (emiTx && monthData.nextEMI == null) {
+        monthData.nextEMI = emiTx.amount || defEMI;
+        modified = true;
+      }
+
+      // Extract salary amount before removing
+      const salaryTx = monthData.transactions.find(tx => tx.id === 'salary');
+      if (salaryTx && monthData.nextSalary == null) {
+        monthData.nextSalary = salaryTx.amount || defSalary;
+        modified = true;
+      }
+
+      // Remove salary and EMI transactions
       const beforeLen = monthData.transactions.length;
-      monthData.transactions = monthData.transactions.filter(tx => tx.id !== 'salary');
+      monthData.transactions = monthData.transactions.filter(tx => tx.id !== 'salary' && tx.id !== 'emi');
       if (monthData.transactions.length !== beforeLen) {
         modified = true;
       }
 
-      monthData.transactions.forEach(tx => {
-        // Migrate House EMI to last day of the month
-        if (tx.id === 'emi') {
-          const expectedDate = year + '-' + String(month).padStart(2, '0') + '-' + String(daysInMonth).padStart(2, '0');
-          if (tx.date !== expectedDate) {
-            tx.date = expectedDate;
-            modified = true;
-          }
-        }
+      // Ensure nextSalary and nextEMI exist
+      if (monthData.nextSalary == null) {
+        monthData.nextSalary = defSalary;
+        modified = true;
+      }
+      if (monthData.nextEMI == null) {
+        monthData.nextEMI = defEMI;
+        modified = true;
+      }
 
-        // Migrate RD to Day 17
+      // Migrate RD to Day 17
+      monthData.transactions.forEach(tx => {
         if (tx.id === 'rd') {
           const expectedDate = year + '-' + String(month).padStart(2, '0') + '-17';
           if (tx.date !== expectedDate) {
@@ -477,11 +494,15 @@ class CashFlowApp {
     if (this.readonlyMode) return;
     if (!this.state.months[monthKey]) {
       const [y, m] = monthKey.split('-').map(Number);
+      const salary = this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary;
+      const emi = this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI;
       this.state.months[monthKey] = {
         bankBalance: this.computeCarryForwardBalance(y, m - 1),
         transactions: generateMonthlyTemplate(y, m - 1),
         prepayment: { loanPrepay: 0, extraMF: 0 },
-        oneTimeEntries: []
+        oneTimeEntries: [],
+        nextSalary: salary,
+        nextEMI: emi
       };
       this.saveData();
     }
@@ -489,8 +510,8 @@ class CashFlowApp {
 
   /**
    * Compute carry-forward balance from the previous month.
-   * Takes previous month's ending balance and adds the estimated salary
-   * (since salary is not a transaction — it's baked into bank balance).
+   * Ending balance + salary - EMI = next month's starting balance.
+   * (Salary and EMI happen at the cycle boundary between months.)
    */
   computeCarryForwardBalance(year, month) {
     // month is 0-indexed
@@ -503,9 +524,10 @@ class CashFlowApp {
       const projection = this.computeProjectionForMonth(prevData, prevYear, prevMonth);
       const lastBalance = projection.dailyBalances[projection.dailyBalances.length - 1];
       const endingBalance = lastBalance ? lastBalance.balance : 0;
-      // Add estimated salary to get the next month's starting balance
-      const salary = this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary;
-      return endingBalance + salary;
+      // Add salary and subtract EMI (cycle boundary pair)
+      const salary = prevData.nextSalary != null ? prevData.nextSalary : (this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary);
+      const emi = prevData.nextEMI != null ? prevData.nextEMI : (this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI);
+      return endingBalance + salary - emi;
     }
 
     return 0;
@@ -574,6 +596,18 @@ class CashFlowApp {
       this.saveData();
       this.render();
     }
+  }
+
+  /**
+   * Update cycle boundary values: 'nextSalary' or 'nextEMI'.
+   * These are not transactions — they affect carry-forward to the next month.
+   */
+  updateBoundaryValue(field, value) {
+    if (this.readonlyMode) return;
+    const data = this.getCurrentMonthData();
+    data[field] = Math.max(0, Number(value) || 0);
+    this.saveData();
+    this.render();
   }
 
   /**
@@ -1223,25 +1257,86 @@ class CashFlowApp {
     if (!container) return;
 
     const data = this.getCurrentMonthData();
-    const fixedIds = ['emi', 'sips', 'rd', 'dad', 'lavanya'];
+    const self = this;
+    const currMonthName = MONTH_NAMES_SHORT[this.currentMonth.month];
 
+    container.innerHTML = '';
+
+    // ── Cycle Boundary: Salary & EMI (end-of-month, funds next cycle) ──
+    const boundaryHeader = document.createElement('div');
+    boundaryHeader.className = 'fp-section-label';
+    boundaryHeader.innerHTML = '<span class="fp-section-icon">🔄</span> End-of-Month (feeds next cycle)';
+    container.appendChild(boundaryHeader);
+
+    const salaryAmt = data.nextSalary != null ? data.nextSalary : (this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary);
+    const emiAmt = data.nextEMI != null ? data.nextEMI : (this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI);
+
+    // Salary item
+    const salaryItem = document.createElement('div');
+    salaryItem.className = 'fixed-payment-item boundary-item';
+    salaryItem.innerHTML =
+      '<div class="fp-info">' +
+        '<span class="fp-icon">💼</span>' +
+        '<div>' +
+          '<div class="fp-name">Salary (' + currMonthName + ')</div>' +
+          '<div class="fp-date">~' + currMonthName + ' 29 · Carry-forward</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="fp-input-wrap">' +
+        '<span class="rupee-symbol">₹</span>' +
+        '<input type="number" class="fp-amount-input" data-boundary-id="nextSalary" value="' + salaryAmt + '" min="0" step="1000" ' + (this.readonlyMode ? 'disabled' : '') + '>' +
+        '<span class="fp-type-badge inflow">→ Next</span>' +
+      '</div>';
+    container.appendChild(salaryItem);
+
+    // EMI item
+    const emiItem = document.createElement('div');
+    emiItem.className = 'fixed-payment-item boundary-item';
+    emiItem.innerHTML =
+      '<div class="fp-info">' +
+        '<span class="fp-icon">🏠</span>' +
+        '<div>' +
+          '<div class="fp-name">House EMI (' + currMonthName + ')</div>' +
+          '<div class="fp-date">~' + currMonthName + ' 30 · Carry-forward</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="fp-input-wrap">' +
+        '<span class="rupee-symbol">₹</span>' +
+        '<input type="number" class="fp-amount-input" data-boundary-id="nextEMI" value="' + emiAmt + '" min="0" step="1000" ' + (this.readonlyMode ? 'disabled' : '') + '>' +
+        '<span class="fp-type-badge outflow">→ Next</span>' +
+      '</div>';
+    container.appendChild(emiItem);
+
+    // Net carry-forward preview
+    const netCarry = salaryAmt - emiAmt;
+    const carryPreview = document.createElement('div');
+    carryPreview.className = 'carry-forward-preview';
+    carryPreview.innerHTML =
+      '<span class="carry-label">Net carry-forward boost:</span>' +
+      '<span class="carry-value ' + (netCarry >= 0 ? 'positive' : 'negative') + '">' +
+        (netCarry >= 0 ? '+' : '') + formatCurrency(netCarry) +
+      '</span>';
+    container.appendChild(carryPreview);
+
+    // ── Mid-cycle Recurring Transactions ──
+    const recurringHeader = document.createElement('div');
+    recurringHeader.className = 'fp-section-label';
+    recurringHeader.innerHTML = '<span class="fp-section-icon">📋</span> This Month\'s Transactions';
+    container.appendChild(recurringHeader);
+
+    const fixedIds = ['sips', 'rd', 'dad', 'lavanya'];
     const labels = {
-      emi: 'House EMI',
       sips: 'SIPs',
       rd: 'Recurring Deposit',
       dad: 'Dad Allowance',
       lavanya: 'Lavanya Contribution'
     };
-
     const icons = {
-      emi: '🏠',
       sips: '📈',
       rd: '🏦',
       dad: '👨‍👧',
       lavanya: '💰'
     };
-
-    container.innerHTML = '';
 
     fixedIds.forEach(fixedId => {
       const tx = data.transactions.find(t => t.id === fixedId);
@@ -1677,13 +1772,23 @@ class CashFlowApp {
       fpList.addEventListener('change', (e) => {
         if (e.target.classList.contains('fp-amount-input')) {
           const txId = e.target.getAttribute('data-tx-id');
-          self.updateTransaction(txId, e.target.value);
+          const boundaryId = e.target.getAttribute('data-boundary-id');
+          if (boundaryId) {
+            self.updateBoundaryValue(boundaryId, e.target.value);
+          } else if (txId) {
+            self.updateTransaction(txId, e.target.value);
+          }
         }
       });
       fpList.addEventListener('blur', (e) => {
         if (e.target.classList.contains('fp-amount-input')) {
           const txId = e.target.getAttribute('data-tx-id');
-          self.updateTransaction(txId, e.target.value);
+          const boundaryId = e.target.getAttribute('data-boundary-id');
+          if (boundaryId) {
+            self.updateBoundaryValue(boundaryId, e.target.value);
+          } else if (txId) {
+            self.updateTransaction(txId, e.target.value);
+          }
         }
       }, true);
     }
