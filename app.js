@@ -1312,7 +1312,7 @@ class CashFlowApp {
       '<div class="fp-info">' +
         '<span class="fp-icon">💼</span>' +
         '<div>' +
-          '<div class="fp-name">Salary (' + prevMonthName + ')</div>' +
+          '<div class="fp-name">Salary (' + currMonthName + ')</div>' +
           '<div class="fp-date">~' + prevMonthName + ' 30 · Cycle Start</div>' +
         '</div>' +
       '</div>' +
@@ -1330,7 +1330,7 @@ class CashFlowApp {
       '<div class="fp-info">' +
         '<span class="fp-icon">🏠</span>' +
         '<div>' +
-          '<div class="fp-name">House EMI (' + prevMonthName + ')</div>' +
+          '<div class="fp-name">House EMI (' + currMonthName + ')</div>' +
           '<div class="fp-date">~' + prevMonthName + ' 31 · Cycle Start</div>' +
         '</div>' +
       '</div>' +
@@ -1672,6 +1672,7 @@ class CashFlowApp {
     const prevMonthIdx = this.currentMonth.month === 0 ? 11 : this.currentMonth.month - 1;
     const prevMonthName = MONTH_NAMES_SHORT[prevMonthIdx];
 
+    const currMonthName = MONTH_NAMES_SHORT[this.currentMonth.month];
     const prevYear = this.currentMonth.month === 0 ? this.currentMonth.year - 1 : this.currentMonth.year;
     const daysInPrevMonth = getDaysInMonth(prevYear, prevMonthIdx);
     const cycleDateStr = prevYear + '-' + String(prevMonthIdx + 1).padStart(2, '0') + '-' + String(daysInPrevMonth).padStart(2, '0');
@@ -1679,7 +1680,7 @@ class CashFlowApp {
     // Push boundary items first
     allEntries.push({
       date: cycleDateStr,
-      description: 'Salary (' + prevMonthName + ')',
+      description: 'Salary (' + currMonthName + ')',
       category: 'Income',
       type: 'inflow',
       amount: cycleSalary,
@@ -1688,7 +1689,7 @@ class CashFlowApp {
     });
     allEntries.push({
       date: cycleDateStr,
-      description: 'House EMI (' + prevMonthName + ')',
+      description: 'House EMI (' + currMonthName + ')',
       category: 'Debt',
       type: 'outflow',
       amount: cycleEMI,
