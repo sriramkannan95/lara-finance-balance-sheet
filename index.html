@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="CashFlow Pulse — Premium monthly cash flow projector. Track income, expenses, credit card bills, and plan loan prepayments and investments." />
+  <title>CashFlow Pulse — Monthly Cash Flow Projector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✦</text></svg>" />
+</head>
+<body>
+
+  <!-- Read-Only Banner (hidden by default, shown by JS) -->
+  <div class="readonly-banner" id="readonlyBanner" style="display:none;"></div>
+
+  <!-- ═══════════════ AUTH BAR ═══════════════ -->
+  <div class="auth-bar" id="authBar">
+    <div class="auth-left">
+      <button class="google-sign-in-btn" id="googleSignInBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        <span>Sign in with Google</span>
+      </button>
+      <div class="user-info" id="userInfo" style="display:none;">
+        <img class="user-avatar" id="userAvatar" src="" alt="" />
+        <span class="user-name" id="userName"></span>
+        <button class="sign-out-btn" id="signOutBtn" style="display:none;">Sign out</button>
+      </div>
+    </div>
+    <div class="sync-status">
+      <span class="sync-dot sync-disabled" id="syncIndicator"></span>
+      <span class="sync-label" id="syncLabel">Local Only</span>
+    </div>
+  </div>
+
+  <div class="app-container">
+
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="app-header">
+      <div class="app-title">
+        <span class="pulse-dot"></span>
+        <h1>CashFlow Pulse</h1>
+      </div>
+      <nav class="month-nav">
+        <button class="nav-btn" id="prevMonthBtn" aria-label="Previous month">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <span class="current-month" id="currentMonthLabel">June 2026</span>
+        <button class="nav-btn" id="nextMonthBtn" aria-label="Next month">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </nav>
+      <button class="share-btn" id="shareBtn" aria-label="Share read-only link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        <span>Share</span>
+      </button>
+    </header>
+
+    <!-- ═══════════════ BANK BALANCE INPUT ═══════════════ -->
+    <div class="bank-balance-bar" id="bankBalanceBar">
+      <div class="balance-label">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>
+        <span>Starting Bank Balance</span>
+      </div>
+      <div class="balance-input-wrap">
+        <span class="currency">₹</span>
+        <input type="number" id="bankBalanceInput" value="25000" min="0" step="100" aria-label="Starting bank balance" />
+      </div>
+    </div>
+
+    <!-- ═══════════════ SUMMARY CARDS ═══════════════ -->
+    <section class="summary-grid" id="summaryGrid">
+      <div class="summary-card card-income animate-in" style="animation-delay: 0s">
+        <div class="card-icon icon-income">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        </div>
+        <div class="card-label">Total Inflow</div>
+        <div class="card-value" id="totalInflow">₹0</div>
+      </div>
+      <div class="summary-card card-outflow animate-in" style="animation-delay: 0.08s">
+        <div class="card-icon icon-outflow">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+        </div>
+        <div class="card-label">Total Outflow</div>
+        <div class="card-value" id="totalOutflow">₹0</div>
+      </div>
+      <div class="summary-card card-balance animate-in" style="animation-delay: 0.16s">
+        <div class="card-icon icon-balance">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+        </div>
+        <div class="card-label">Lowest Balance</div>
+        <div class="card-value" id="lowestBalance">₹0</div>
+      </div>
+      <div class="summary-card card-excess animate-in" style="animation-delay: 0.24s">
+        <div class="card-icon icon-excess">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <div class="card-label">Safe to Deploy</div>
+        <div class="card-value" id="excessAmount">₹0</div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ BALANCE PROJECTION CHART ═══════════════ -->
+    <section class="section-card chart-section">
+      <div class="chart-header">
+        <h2>Balance Projection</h2>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <span class="legend-dot dot-balance"></span>
+            <span>Balance</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-excess"></span>
+            <span>Safety Buffer</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="balanceChart"></canvas>
+      </div>
+    </section>
+
+    <!-- ═══════════════ CREDIT CARDS ═══════════════ -->
+    <section class="section-card" id="creditCardsSection">
+      <div class="section-header">
+        <h2>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Credit Cards
+        </h2>
+      </div>
+      <div class="credit-card-list" id="creditCardList">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- ═══════════════ FIXED & RECURRING ═══════════════ -->
+    <section class="section-card" id="fixedSection">
+      <div class="section-header">
+        <h2>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Fixed &amp; Recurring
+        </h2>
+      </div>
+      <div class="fixed-list" id="fixedPaymentsList">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- ═══════════════ PREPAYMENT PLANNER ═══════════════ -->
+    <section class="section-card prepayment-card" id="prepaymentSection">
+      <div class="section-header">
+        <h2>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Prepayment Planner
+        </h2>
+      </div>
+      <div class="prepayment-summary" id="prepaymentSummary">
+        <div class="prepay-stat">
+          <span class="prepay-label">Projected Excess</span>
+          <span class="prepay-value excess" id="surplusExcess">₹0</span>
+        </div>
+        <div class="prepay-stat">
+          <span class="prepay-label">Safety Buffer</span>
+          <div class="prepay-input-wrap-inline">
+            <span class="currency">₹</span>
+            <input type="number" id="safetyBufferInput" value="20000" min="0" step="1000" />
+          </div>
+        </div>
+      </div>
+      <div class="prepayment-inputs">
+        <div class="prepay-input-row">
+          <label for="loanPrepayInput">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Loan Prepayment
+          </label>
+          <div class="prepay-input-wrap">
+            <span class="currency">₹</span>
+            <input type="number" id="loanPrepayInput" value="0" min="0" step="1000" />
+          </div>
+        </div>
+        <div class="prepay-input-row">
+          <label for="extraMFInput">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Extra Mutual Fund
+          </label>
+          <div class="prepay-input-wrap">
+            <span class="currency">₹</span>
+            <input type="number" id="extraMFInput" value="0" min="0" step="1000" />
+          </div>
+        </div>
+      </div>
+      <div class="prepay-remaining">
+        <span class="remaining-label">Remaining After Deployment</span>
+        <span class="remaining-value" id="prepayRemaining">₹0</span>
+      </div>
+      <div class="prepay-timing" id="prepayTiming">
+        <!-- Timing recommendation rendered by JS -->
+      </div>
+    </section>
+
+    <!-- ═══════════════ TRANSACTION TIMELINE ═══════════════ -->
+    <section class="section-card" id="timelineSection">
+      <div class="section-header">
+        <h2>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Transaction Timeline
+        </h2>
+      </div>
+      <div class="timeline-list" id="transactionTimeline">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- ═══════════════ ONE-TIME ENTRIES ═══════════════ -->
+    <section class="section-card onetime-section" id="onetimeSection">
+      <div class="section-header">
+        <h2>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          One-Time Entries
+        </h2>
+      </div>
+      <div class="onetime-entries" id="oneTimeList">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="onetime-buttons">
+        <button class="btn-add btn-add-income" id="addOneTimeIncome">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Bonus / Income
+        </button>
+        <button class="btn-add btn-add-expense" id="addOneTimeExpense">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Expense
+        </button>
+      </div>
+    </section>
+
+    <!-- ═══════════════ SPREADSHEET LOG ═══════════════ -->
+    <section class="section-card" id="logSection">
+      <div class="section-header">
+        <h2>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Monthly Ledger
+        </h2>
+      </div>
+      <div id="spreadsheetLog">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- ═══════════════ FOOTER ACTIONS ═══════════════ -->
+    <footer class="footer-actions">
+      <button class="btn-export" id="exportBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export JSON
+      </button>
+      <label class="btn-export btn-import-label" for="importFileInput">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import JSON
+      </label>
+      <input type="file" id="importFileInput" accept=".json" style="display:none" />
+    </footer>
+  </div>
+
+  <!-- ═══════════════ MODAL ═══════════════ -->
+  <div class="modal-overlay" id="oneTimeModal">
+    <div class="modal" id="entryModal">
+      <h3>Add <span id="modalTypeLabel">↑ Income</span></h3>
+      <div class="modal-field">
+        <label for="modalDate">Date</label>
+        <input type="date" id="modalDate" />
+      </div>
+      <div class="modal-field">
+        <label for="modalDescription">Description</label>
+        <input type="text" id="modalDescription" placeholder="e.g. Quarterly Bonus" />
+      </div>
+      <div class="modal-field">
+        <label for="modalAmount">Amount (₹)</label>
+        <input type="number" id="modalAmount" min="0" step="100" placeholder="0" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="modalCancelBtn">Cancel</button>
+        <button class="btn-save" id="modalSaveBtn">Add Entry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TOAST (created dynamically by JS) ═══════════════ -->
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
