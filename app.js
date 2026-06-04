@@ -195,13 +195,13 @@ function generateMonthlyTemplate(year, month) {
     { id: 'idfc', day: 3, description: 'IDFC Card Auto-Pay', billDate: '22nd prev month', billGenDay: 22, billGenMonth: 'prev', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'sbi_sriram', day: 4, description: 'SBI Sriram Auto-Pay', billDate: '18th prev month', billGenDay: 18, billGenMonth: 'prev', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'dad', day: 5, description: 'Dad Allowance', billDate: null, category: 'Income', type: 'inflow', amount: 40000, editable: true, isFixed: true },
-    { id: 'emi', day: 5, description: 'House EMI', billDate: null, category: 'Debt', type: 'outflow', amount: 70000, editable: true, isFixed: true },
+    { id: 'emi', day: 31, description: 'House EMI', billDate: null, category: 'Debt', type: 'outflow', amount: 70000, editable: true, isFixed: true },
     { id: 'sips', day: 12, description: 'SIPs', billDate: null, category: 'Investment', type: 'outflow', amount: 10000, editable: true, isFixed: true },
-    { id: 'rd', day: 15, description: 'Recurring Deposit', billDate: null, category: 'Investment', type: 'outflow', amount: 3900, editable: true, isFixed: true },
+    { id: 'rd', day: 17, description: 'Recurring Deposit', billDate: null, category: 'Investment', type: 'outflow', amount: 3900, editable: true, isFixed: true },
     { id: 'icici', day: 17, description: 'ICICI Cards Auto-Pay', billDate: '2nd curr month', billGenDay: 2, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'sbi_lava', day: 20, description: 'SBI Lava Auto-Pay', billDate: '3rd curr month', billGenDay: 3, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'hdfc', day: 29, description: 'HDFC Card Auto-Pay', billDate: '13th curr month', billGenDay: 13, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
-    { id: 'salary', day: 30, description: 'Salary', billDate: null, category: 'Income', type: 'inflow', amount: 142000, editable: true, isFixed: true }
+    { id: 'salary', day: 1, description: 'Salary', billDate: null, category: 'Income', type: 'inflow', amount: 142000, editable: true, isFixed: true }
   ];
 
   const daysInMonth = getDaysInMonth(year, month);
@@ -322,6 +322,7 @@ class CashFlowApp {
       const resolvedState = await migrateLocalToCloud(this.state);
       if (resolvedState) {
         this.state = resolvedState;
+        this.migrateData();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
         this.render();
         showToast('Signed in as ' + user.displayName + '! Data synced.');
@@ -345,12 +346,64 @@ class CashFlowApp {
   handleCloudData(cloudState, timestamp) {
     // Replace local state with cloud state
     this.state = cloudState;
+    this.migrateData();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
 
     // Re-ensure current month exists
     this.ensureMonth(this.getMonthKey(this.currentMonth.year, this.currentMonth.month));
     this.render();
     showToast('Data updated from another device.');
+  }
+
+  /**
+   * Migrate existing months to the new cycle layout (Salary on Day 1, EMI on Day 30/31, RD on Day 17).
+   */
+  migrateData() {
+    if (!this.state || !this.state.months) return;
+
+    let modified = false;
+
+    Object.keys(this.state.months).forEach(monthKey => {
+      const monthData = this.state.months[monthKey];
+      if (!monthData || !monthData.transactions) return;
+
+      const [year, month] = monthKey.split('-').map(Number); // month is 1-indexed (1-12)
+      const m0 = month - 1; // 0-indexed month
+      const daysInMonth = getDaysInMonth(year, m0);
+
+      monthData.transactions.forEach(tx => {
+        // Migrate salary from Day 30 to Day 1
+        if (tx.id === 'salary') {
+          const expectedDate = year + '-' + String(month).padStart(2, '0') + '-01';
+          if (tx.date !== expectedDate) {
+            tx.date = expectedDate;
+            modified = true;
+          }
+        }
+
+        // Migrate House EMI from Day 5 to Day 30/31 (last day of the month)
+        if (tx.id === 'emi') {
+          const expectedDate = year + '-' + String(month).padStart(2, '0') + '-' + String(daysInMonth).padStart(2, '0');
+          if (tx.date !== expectedDate) {
+            tx.date = expectedDate;
+            modified = true;
+          }
+        }
+
+        // Migrate RD from Day 15 to Day 17
+        if (tx.id === 'rd') {
+          const expectedDate = year + '-' + String(month).padStart(2, '0') + '-17';
+          if (tx.date !== expectedDate) {
+            tx.date = expectedDate;
+            modified = true;
+          }
+        }
+      });
+    });
+
+    if (modified) {
+      this.saveData();
+    }
   }
 
   /**
@@ -368,6 +421,8 @@ class CashFlowApp {
         if (!this.state.months) {
           this.state.months = {};
         }
+        // Run migration to shift salary/EMI/RD dates in existing months
+        this.migrateData();
       } else {
         this.initFreshState();
       }
