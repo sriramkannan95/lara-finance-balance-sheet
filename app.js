@@ -217,7 +217,10 @@ function generateMonthlyTemplate(year, month) {
       String(date.getDate()).padStart(2, '0');
 
     let description = t.description;
-    if (t.billDate) {
+    if (t.id === 'salary') {
+      // Salary on Day 1 of this month is the PREVIOUS month's salary
+      description = 'Salary (' + MONTH_NAMES_SHORT[prevMonth] + ')';
+    } else if (t.billDate) {
       const billDayMatch = t.billDate.match(/\d+/);
       const billDay = billDayMatch ? billDayMatch[0] : '';
       if (t.billDate.includes('prev')) {
@@ -372,11 +375,18 @@ class CashFlowApp {
       const daysInMonth = getDaysInMonth(year, m0);
 
       monthData.transactions.forEach(tx => {
-        // Migrate salary from Day 30 to Day 1
+        // Migrate salary from Day 30 to Day 1 and update description
         if (tx.id === 'salary') {
           const expectedDate = year + '-' + String(month).padStart(2, '0') + '-01';
           if (tx.date !== expectedDate) {
             tx.date = expectedDate;
+            modified = true;
+          }
+          // Update description to show previous month name
+          const prevM = m0 === 0 ? 11 : m0 - 1;
+          const expectedDesc = 'Salary (' + MONTH_NAMES_SHORT[prevM] + ')';
+          if (tx.description !== expectedDesc) {
+            tx.description = expectedDesc;
             modified = true;
           }
         }
@@ -1216,13 +1226,17 @@ class CashFlowApp {
     const data = this.getCurrentMonthData();
     const fixedIds = ['emi', 'sips', 'rd', 'dad', 'lavanya', 'salary'];
 
+    // Compute previous month name for salary label
+    const prevMonthIdx = this.currentMonth.month === 0 ? 11 : this.currentMonth.month - 1;
+    const salaryLabel = 'Salary (' + MONTH_NAMES_SHORT[prevMonthIdx] + ')';
+
     const labels = {
       emi: 'House EMI',
       sips: 'SIPs',
       rd: 'Recurring Deposit',
       dad: 'Dad Allowance',
       lavanya: 'Lavanya Contribution',
-      salary: 'Salary'
+      salary: salaryLabel
     };
 
     const icons = {
