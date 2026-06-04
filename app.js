@@ -1669,9 +1669,13 @@ class CashFlowApp {
     const prevMonthIdx = this.currentMonth.month === 0 ? 11 : this.currentMonth.month - 1;
     const prevMonthName = MONTH_NAMES_SHORT[prevMonthIdx];
 
+    const prevYear = this.currentMonth.month === 0 ? this.currentMonth.year - 1 : this.currentMonth.year;
+    const daysInPrevMonth = getDaysInMonth(prevYear, prevMonthIdx);
+    const cycleDateStr = prevYear + '-' + String(prevMonthIdx + 1).padStart(2, '0') + '-' + String(daysInPrevMonth).padStart(2, '0');
+
     // Push boundary items first
     allEntries.push({
-      date: 'Cycle Start',
+      date: cycleDateStr,
       description: 'Salary (' + prevMonthName + ')',
       category: 'Income',
       type: 'inflow',
@@ -1680,7 +1684,7 @@ class CashFlowApp {
       source: 'boundary'
     });
     allEntries.push({
-      date: 'Cycle Start',
+      date: cycleDateStr,
       description: 'House EMI (' + prevMonthName + ')',
       category: 'Debt',
       type: 'outflow',
