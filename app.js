@@ -190,6 +190,8 @@ function animateValue(element, start, end, duration) {
  * Generate recurring monthly transactions for a given year/month (0-indexed).
  */
 function generateMonthlyTemplate(year, month) {
+  // NOTE: Salary is NOT included here — it is already baked into the
+  // "Bank Balance" input (which represents balance after prev-month salary).
   const transactions = [
     { id: 'lavanya', day: 1, description: 'Lavanya Contribution', billDate: null, category: 'Income', type: 'inflow', amount: 35000, editable: true, isFixed: true },
     { id: 'idfc', day: 3, description: 'IDFC Card Auto-Pay', billDate: '22nd prev month', billGenDay: 22, billGenMonth: 'prev', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
@@ -200,8 +202,7 @@ function generateMonthlyTemplate(year, month) {
     { id: 'rd', day: 17, description: 'Recurring Deposit', billDate: null, category: 'Investment', type: 'outflow', amount: 3900, editable: true, isFixed: true },
     { id: 'icici', day: 17, description: 'ICICI Cards Auto-Pay', billDate: '2nd curr month', billGenDay: 2, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'sbi_lava', day: 20, description: 'SBI Lava Auto-Pay', billDate: '3rd curr month', billGenDay: 3, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
-    { id: 'hdfc', day: 29, description: 'HDFC Card Auto-Pay', billDate: '13th curr month', billGenDay: 13, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
-    { id: 'salary', day: 1, description: 'Salary', billDate: null, category: 'Income', type: 'inflow', amount: 142000, editable: true, isFixed: true }
+    { id: 'hdfc', day: 29, description: 'HDFC Card Auto-Pay', billDate: '13th curr month', billGenDay: 13, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false }
   ];
 
   const daysInMonth = getDaysInMonth(year, month);
@@ -217,10 +218,7 @@ function generateMonthlyTemplate(year, month) {
       String(date.getDate()).padStart(2, '0');
 
     let description = t.description;
-    if (t.id === 'salary') {
-      // Salary on Day 1 of this month is the PREVIOUS month's salary
-      description = 'Salary (' + MONTH_NAMES_SHORT[prevMonth] + ')';
-    } else if (t.billDate) {
+    if (t.billDate) {
       const billDayMatch = t.billDate.match(/\d+/);
       const billDay = billDayMatch ? billDayMatch[0] : '';
       if (t.billDate.includes('prev')) {
@@ -359,7 +357,7 @@ class CashFlowApp {
   }
 
   /**
-   * Migrate existing months to the new cycle layout (Salary on Day 1, EMI on Day 30/31, RD on Day 17).
+   * Migrate existing months: remove salary transactions, fix EMI/RD dates.
    */
   migrateData() {
     if (!this.state || !this.state.months) return;
@@ -374,24 +372,15 @@ class CashFlowApp {
       const m0 = month - 1; // 0-indexed month
       const daysInMonth = getDaysInMonth(year, m0);
 
-      monthData.transactions.forEach(tx => {
-        // Migrate salary from Day 30 to Day 1 and update description
-        if (tx.id === 'salary') {
-          const expectedDate = year + '-' + String(month).padStart(2, '0') + '-01';
-          if (tx.date !== expectedDate) {
-            tx.date = expectedDate;
-            modified = true;
-          }
-          // Update description to show previous month name
-          const prevM = m0 === 0 ? 11 : m0 - 1;
-          const expectedDesc = 'Salary (' + MONTH_NAMES_SHORT[prevM] + ')';
-          if (tx.description !== expectedDesc) {
-            tx.description = expectedDesc;
-            modified = true;
-          }
-        }
+      // Remove salary transaction — it's now implicit in bank balance
+      const beforeLen = monthData.transactions.length;
+      monthData.transactions = monthData.transactions.filter(tx => tx.id !== 'salary');
+      if (monthData.transactions.length !== beforeLen) {
+        modified = true;
+      }
 
-        // Migrate House EMI from Day 5 to Day 30/31 (last day of the month)
+      monthData.transactions.forEach(tx => {
+        // Migrate House EMI to last day of the month
         if (tx.id === 'emi') {
           const expectedDate = year + '-' + String(month).padStart(2, '0') + '-' + String(daysInMonth).padStart(2, '0');
           if (tx.date !== expectedDate) {
@@ -400,7 +389,7 @@ class CashFlowApp {
           }
         }
 
-        // Migrate RD from Day 15 to Day 17
+        // Migrate RD to Day 17
         if (tx.id === 'rd') {
           const expectedDate = year + '-' + String(month).padStart(2, '0') + '-17';
           if (tx.date !== expectedDate) {
@@ -500,8 +489,8 @@ class CashFlowApp {
 
   /**
    * Compute carry-forward balance from the previous month.
-   * If previous month data exists, use its projected ending balance.
-   * Otherwise default to 0.
+   * Takes previous month's ending balance and adds the estimated salary
+   * (since salary is not a transaction — it's baked into bank balance).
    */
   computeCarryForwardBalance(year, month) {
     // month is 0-indexed
@@ -513,7 +502,10 @@ class CashFlowApp {
       const prevData = this.state.months[prevKey];
       const projection = this.computeProjectionForMonth(prevData, prevYear, prevMonth);
       const lastBalance = projection.dailyBalances[projection.dailyBalances.length - 1];
-      return lastBalance ? lastBalance.balance : 0;
+      const endingBalance = lastBalance ? lastBalance.balance : 0;
+      // Add estimated salary to get the next month's starting balance
+      const salary = this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary;
+      return endingBalance + salary;
     }
 
     return 0;
@@ -813,7 +805,7 @@ class CashFlowApp {
   }
 
   /**
-   * Render the bank balance input field.
+   * Render the bank balance input field and update the label dynamically.
    */
   renderBankBalanceInput() {
     const input = document.getElementById('bankBalanceInput');
@@ -825,6 +817,13 @@ class CashFlowApp {
       if (this.readonlyMode) {
         input.disabled = true;
       }
+    }
+
+    // Update label to show "Bank Balance (after [PrevMonth] Salary)"
+    const labelSpan = document.querySelector('#bankBalanceBar .balance-label span');
+    if (labelSpan) {
+      const prevMonthIdx = this.currentMonth.month === 0 ? 11 : this.currentMonth.month - 1;
+      labelSpan.textContent = 'Bank Balance (after ' + MONTH_NAMES[prevMonthIdx] + ' Salary)';
     }
   }
 
@@ -1224,19 +1223,14 @@ class CashFlowApp {
     if (!container) return;
 
     const data = this.getCurrentMonthData();
-    const fixedIds = ['emi', 'sips', 'rd', 'dad', 'lavanya', 'salary'];
-
-    // Compute previous month name for salary label
-    const prevMonthIdx = this.currentMonth.month === 0 ? 11 : this.currentMonth.month - 1;
-    const salaryLabel = 'Salary (' + MONTH_NAMES_SHORT[prevMonthIdx] + ')';
+    const fixedIds = ['emi', 'sips', 'rd', 'dad', 'lavanya'];
 
     const labels = {
       emi: 'House EMI',
       sips: 'SIPs',
       rd: 'Recurring Deposit',
       dad: 'Dad Allowance',
-      lavanya: 'Lavanya Contribution',
-      salary: salaryLabel
+      lavanya: 'Lavanya Contribution'
     };
 
     const icons = {
@@ -1244,8 +1238,7 @@ class CashFlowApp {
       sips: '📈',
       rd: '🏦',
       dad: '👨‍👧',
-      lavanya: '💰',
-      salary: '💼'
+      lavanya: '💰'
     };
 
     container.innerHTML = '';
