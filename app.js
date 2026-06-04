@@ -1301,6 +1301,9 @@ class CashFlowApp {
 
     const salaryAmt = data.cycleSalary != null ? data.cycleSalary : (this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary);
     const emiAmt = data.cycleEMI != null ? data.cycleEMI : (this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI);
+    
+    const prevMonthIdx = this.currentMonth.month === 0 ? 11 : this.currentMonth.month - 1;
+    const prevMonthName = MONTH_NAMES_SHORT[prevMonthIdx];
 
     // Salary item
     const salaryItem = document.createElement('div');
@@ -1309,8 +1312,8 @@ class CashFlowApp {
       '<div class="fp-info">' +
         '<span class="fp-icon">💼</span>' +
         '<div>' +
-          '<div class="fp-name">Salary (' + currMonthName + ')</div>' +
-          '<div class="fp-date">~' + currMonthName + ' 29 · Cycle Start</div>' +
+          '<div class="fp-name">Salary (' + prevMonthName + ')</div>' +
+          '<div class="fp-date">~' + prevMonthName + ' 30 · Cycle Start</div>' +
         '</div>' +
       '</div>' +
       '<div class="fp-input-wrap">' +
@@ -1327,8 +1330,8 @@ class CashFlowApp {
       '<div class="fp-info">' +
         '<span class="fp-icon">🏠</span>' +
         '<div>' +
-          '<div class="fp-name">House EMI (' + currMonthName + ')</div>' +
-          '<div class="fp-date">~' + currMonthName + ' 30 · Cycle Start</div>' +
+          '<div class="fp-name">House EMI (' + prevMonthName + ')</div>' +
+          '<div class="fp-date">~' + prevMonthName + ' 31 · Cycle Start</div>' +
         '</div>' +
       '</div>' +
       '<div class="fp-input-wrap">' +
