@@ -359,7 +359,7 @@ class CashFlowApp {
 
   /**
    * Migrate existing months: remove salary & EMI transactions (they are now
-   * cycle-boundary items stored as nextSalary / nextEMI), and fix RD dates.
+   * cycle-boundary items stored as cycleSalary / cycleEMI), and fix RD dates.
    */
   migrateData() {
     if (!this.state || !this.state.months) return;
@@ -374,17 +374,29 @@ class CashFlowApp {
 
       const [year, month] = monthKey.split('-').map(Number);
 
+      // Rename from previous migration if exists
+      if (monthData.nextSalary != null) {
+        monthData.cycleSalary = monthData.nextSalary;
+        delete monthData.nextSalary;
+        modified = true;
+      }
+      if (monthData.nextEMI != null) {
+        monthData.cycleEMI = monthData.nextEMI;
+        delete monthData.nextEMI;
+        modified = true;
+      }
+
       // Extract EMI amount before removing, so we preserve any user edits
       const emiTx = monthData.transactions.find(tx => tx.id === 'emi');
-      if (emiTx && monthData.nextEMI == null) {
-        monthData.nextEMI = emiTx.amount || defEMI;
+      if (emiTx && monthData.cycleEMI == null) {
+        monthData.cycleEMI = emiTx.amount || defEMI;
         modified = true;
       }
 
       // Extract salary amount before removing
       const salaryTx = monthData.transactions.find(tx => tx.id === 'salary');
-      if (salaryTx && monthData.nextSalary == null) {
-        monthData.nextSalary = salaryTx.amount || defSalary;
+      if (salaryTx && monthData.cycleSalary == null) {
+        monthData.cycleSalary = salaryTx.amount || defSalary;
         modified = true;
       }
 
@@ -395,13 +407,13 @@ class CashFlowApp {
         modified = true;
       }
 
-      // Ensure nextSalary and nextEMI exist
-      if (monthData.nextSalary == null) {
-        monthData.nextSalary = defSalary;
+      // Ensure cycleSalary and cycleEMI exist
+      if (monthData.cycleSalary == null) {
+        monthData.cycleSalary = defSalary;
         modified = true;
       }
-      if (monthData.nextEMI == null) {
-        monthData.nextEMI = defEMI;
+      if (monthData.cycleEMI == null) {
+        monthData.cycleEMI = defEMI;
         modified = true;
       }
 
@@ -501,8 +513,8 @@ class CashFlowApp {
         transactions: generateMonthlyTemplate(y, m - 1),
         prepayment: { loanPrepay: 0, extraMF: 0 },
         oneTimeEntries: [],
-        nextSalary: salary,
-        nextEMI: emi
+        cycleSalary: salary,
+        cycleEMI: emi
       };
       this.saveData();
     }
@@ -510,8 +522,8 @@ class CashFlowApp {
 
   /**
    * Compute carry-forward balance from the previous month.
-   * Ending balance + salary - EMI = next month's starting balance.
-   * (Salary and EMI happen at the cycle boundary between months.)
+   * Since salary and EMI are now applied at the start of the current cycle,
+   * we simply carry forward the raw ending balance of the previous month.
    */
   computeCarryForwardBalance(year, month) {
     // month is 0-indexed
@@ -523,11 +535,7 @@ class CashFlowApp {
       const prevData = this.state.months[prevKey];
       const projection = this.computeProjectionForMonth(prevData, prevYear, prevMonth);
       const lastBalance = projection.dailyBalances[projection.dailyBalances.length - 1];
-      const endingBalance = lastBalance ? lastBalance.balance : 0;
-      // Add salary and subtract EMI (cycle boundary pair)
-      const salary = prevData.nextSalary != null ? prevData.nextSalary : (this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary);
-      const emi = prevData.nextEMI != null ? prevData.nextEMI : (this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI);
-      return endingBalance + salary - emi;
+      return lastBalance ? lastBalance.balance : 0;
     }
 
     return 0;
@@ -717,12 +725,35 @@ class CashFlowApp {
     }
 
     // Build daily balances
-    let runningBalance = startingBalance;
     const dailyBalances = [];
     let totalInflow = 0;
     let totalOutflow = 0;
-    let lowestBalance = startingBalance;
 
+    // --- Day 0: Cycle Boundary (Salary and EMI) ---
+    const cycleSalary = data.cycleSalary != null ? data.cycleSalary : (this.state ? this.state.settings.defaultSalary : DEFAULT_SETTINGS.defaultSalary);
+    const cycleEMI = data.cycleEMI != null ? data.cycleEMI : (this.state ? this.state.settings.defaultEMI : DEFAULT_SETTINGS.defaultEMI);
+
+    const prevMonthIdx = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
+    const daysInPrevMonth = getDaysInMonth(prevYear, prevMonthIdx);
+    const cycleDateStr = prevYear + '-' + String(prevMonthIdx + 1).padStart(2, '0') + '-' + String(daysInPrevMonth).padStart(2, '0');
+
+    let runningBalance = startingBalance + cycleSalary - cycleEMI;
+    totalInflow += cycleSalary;
+    totalOutflow += cycleEMI;
+    let lowestBalance = runningBalance;
+
+    dailyBalances.push({
+      day: 0,
+      date: cycleDateStr,
+      balance: runningBalance,
+      inflow: cycleSalary,
+      outflow: cycleEMI,
+      netFlow: cycleSalary - cycleEMI,
+      isCycleBoundary: true
+    });
+
+    // --- Day 1 to daysInMonth ---
     for (let day = 1; day <= daysInMonth; day++) {
       let dayInflow = 0;
       let dayOutflow = 0;
@@ -853,11 +884,11 @@ class CashFlowApp {
       }
     }
 
-    // Update label to show "Bank Balance (after [PrevMonth] Salary)"
+    // Update label to show "Bank Balance (Before [PrevMonth] Salary)"
     const labelSpan = document.querySelector('#bankBalanceBar .balance-label span');
     if (labelSpan) {
       const prevMonthIdx = this.currentMonth.month === 0 ? 11 : this.currentMonth.month - 1;
-      labelSpan.textContent = 'Bank Balance (after ' + MONTH_NAMES[prevMonthIdx] + ' Salary)';
+      labelSpan.textContent = 'Bank Balance (Before ' + MONTH_NAMES[prevMonthIdx] + ' Salary)';
     }
   }
 
@@ -1262,14 +1293,14 @@ class CashFlowApp {
 
     container.innerHTML = '';
 
-    // ── Cycle Boundary: Salary & EMI (end-of-month, funds next cycle) ──
+    // ── Cycle Boundary: Salary & EMI (start-of-month, funds this cycle) ──
     const boundaryHeader = document.createElement('div');
     boundaryHeader.className = 'fp-section-label';
-    boundaryHeader.innerHTML = '<span class="fp-section-icon">🔄</span> End-of-Month (feeds next cycle)';
+    boundaryHeader.innerHTML = '<span class="fp-section-icon">🔄</span> Cycle Start (Funds this month)';
     container.appendChild(boundaryHeader);
 
-    const salaryAmt = data.nextSalary != null ? data.nextSalary : (this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary);
-    const emiAmt = data.nextEMI != null ? data.nextEMI : (this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI);
+    const salaryAmt = data.cycleSalary != null ? data.cycleSalary : (this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary);
+    const emiAmt = data.cycleEMI != null ? data.cycleEMI : (this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI);
 
     // Salary item
     const salaryItem = document.createElement('div');
@@ -1279,13 +1310,13 @@ class CashFlowApp {
         '<span class="fp-icon">💼</span>' +
         '<div>' +
           '<div class="fp-name">Salary (' + currMonthName + ')</div>' +
-          '<div class="fp-date">~' + currMonthName + ' 29 · Carry-forward</div>' +
+          '<div class="fp-date">~' + currMonthName + ' 29 · Cycle Start</div>' +
         '</div>' +
       '</div>' +
       '<div class="fp-input-wrap">' +
         '<span class="rupee-symbol">₹</span>' +
-        '<input type="number" class="fp-amount-input" data-boundary-id="nextSalary" value="' + salaryAmt + '" min="0" step="1000" ' + (this.readonlyMode ? 'disabled' : '') + '>' +
-        '<span class="fp-type-badge inflow">→ Next</span>' +
+        '<input type="number" class="fp-amount-input" data-boundary-id="cycleSalary" value="' + salaryAmt + '" min="0" step="1000" ' + (this.readonlyMode ? 'disabled' : '') + '>' +
+        '<span class="fp-type-badge inflow">↑ In</span>' +
       '</div>';
     container.appendChild(salaryItem);
 
@@ -1297,22 +1328,22 @@ class CashFlowApp {
         '<span class="fp-icon">🏠</span>' +
         '<div>' +
           '<div class="fp-name">House EMI (' + currMonthName + ')</div>' +
-          '<div class="fp-date">~' + currMonthName + ' 30 · Carry-forward</div>' +
+          '<div class="fp-date">~' + currMonthName + ' 30 · Cycle Start</div>' +
         '</div>' +
       '</div>' +
       '<div class="fp-input-wrap">' +
         '<span class="rupee-symbol">₹</span>' +
-        '<input type="number" class="fp-amount-input" data-boundary-id="nextEMI" value="' + emiAmt + '" min="0" step="1000" ' + (this.readonlyMode ? 'disabled' : '') + '>' +
-        '<span class="fp-type-badge outflow">→ Next</span>' +
+        '<input type="number" class="fp-amount-input" data-boundary-id="cycleEMI" value="' + emiAmt + '" min="0" step="1000" ' + (this.readonlyMode ? 'disabled' : '') + '>' +
+        '<span class="fp-type-badge outflow">↓ Out</span>' +
       '</div>';
     container.appendChild(emiItem);
 
-    // Net carry-forward preview
+    // Net cycle start preview
     const netCarry = salaryAmt - emiAmt;
     const carryPreview = document.createElement('div');
     carryPreview.className = 'carry-forward-preview';
     carryPreview.innerHTML =
-      '<span class="carry-label">Net carry-forward boost:</span>' +
+      '<span class="carry-label">Net starting boost:</span>' +
       '<span class="carry-value ' + (netCarry >= 0 ? 'positive' : 'negative') + '">' +
         (netCarry >= 0 ? '+' : '') + formatCurrency(netCarry) +
       '</span>';
@@ -1632,6 +1663,31 @@ class CashFlowApp {
 
     const data = this.getCurrentMonthData();
     const allEntries = [];
+
+    const cycleSalary = data.cycleSalary != null ? data.cycleSalary : (this.state.settings.defaultSalary || DEFAULT_SETTINGS.defaultSalary);
+    const cycleEMI = data.cycleEMI != null ? data.cycleEMI : (this.state.settings.defaultEMI || DEFAULT_SETTINGS.defaultEMI);
+    const prevMonthIdx = this.currentMonth.month === 0 ? 11 : this.currentMonth.month - 1;
+    const prevMonthName = MONTH_NAMES_SHORT[prevMonthIdx];
+
+    // Push boundary items first
+    allEntries.push({
+      date: 'Cycle Start',
+      description: 'Salary (' + prevMonthName + ')',
+      category: 'Income',
+      type: 'inflow',
+      amount: cycleSalary,
+      paidEarly: false,
+      source: 'boundary'
+    });
+    allEntries.push({
+      date: 'Cycle Start',
+      description: 'House EMI (' + prevMonthName + ')',
+      category: 'Debt',
+      type: 'outflow',
+      amount: cycleEMI,
+      paidEarly: false,
+      source: 'boundary'
+    });
 
     if (data.transactions) {
       data.transactions.forEach(tx => {
