@@ -1239,6 +1239,15 @@ class CashFlowApp {
     const data = this.getCurrentMonthData();
     const creditCards = ['idfc', 'sbi_sriram', 'icici', 'sbi_lava', 'hdfc'];
 
+    // Sort credit cards in ascending order of bill generation
+    creditCards.sort((a, b) => {
+      const txA = data.transactions ? data.transactions.find(t => t.id === a) : null;
+      const txB = data.transactions ? data.transactions.find(t => t.id === b) : null;
+      const scoreA = txA ? (txA.billGenMonth === 'prev' ? 0 : 1) * 100 + (txA.billGenDay || 0) : 999;
+      const scoreB = txB ? (txB.billGenMonth === 'prev' ? 0 : 1) * 100 + (txB.billGenDay || 0) : 999;
+      return scoreA - scoreB;
+    });
+
     const cardNames = {
       idfc: 'IDFC',
       sbi_sriram: 'SBI Sriram',
