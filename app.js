@@ -724,6 +724,7 @@ class CashFlowApp {
     // Prepayment deductions: apply on the last day
     const prepay = data.prepayment || { loanPrepay: 0, extraMF: 0 };
     const totalPrepay = (prepay.loanPrepay || 0) + (prepay.extraMF || 0);
+    const prepayDay = daysInMonth; // Prepayments happen on the last day
     if (totalPrepay > 0) {
       allEvents.push({
         date: year + '-' + String(month + 1).padStart(2, '0') + '-' + String(daysInMonth).padStart(2, '0'),
@@ -738,6 +739,8 @@ class CashFlowApp {
     // Build daily balances
     const dailyBalances = [];
     let totalInflow = 0;
+    // Track lowest balance excluding prepayments for the prepayment planner
+    let lowestBalanceBeforePrepay = Infinity;
     let totalOutflow = 0;
 
     // --- Day 0: Cycle Boundary (Salary and EMI) ---
@@ -753,6 +756,7 @@ class CashFlowApp {
     totalInflow += cycleSalary;
     totalOutflow += cycleEMI;
     let lowestBalance = runningBalance;
+    lowestBalanceBeforePrepay = runningBalance;
 
     dailyBalances.push({
       day: 0,
@@ -768,6 +772,7 @@ class CashFlowApp {
     for (let day = 1; day <= daysInMonth; day++) {
       let dayInflow = 0;
       let dayOutflow = 0;
+      let dayOutflowExclPrepay = 0;
 
       allEvents.forEach(ev => {
         if (ev.day === day) {
@@ -775,6 +780,9 @@ class CashFlowApp {
             dayInflow += ev.amount;
           } else {
             dayOutflow += ev.amount;
+            if (ev.category !== 'Prepayment') {
+              dayOutflowExclPrepay += ev.amount;
+            }
           }
         }
       });
@@ -785,6 +793,12 @@ class CashFlowApp {
 
       if (runningBalance < lowestBalance) {
         lowestBalance = runningBalance;
+      }
+
+      // Track the lowest balance as if prepayments didn't exist
+      const balanceExclPrepay = runningBalance + (day >= prepayDay ? totalPrepay : 0);
+      if (balanceExclPrepay < lowestBalanceBeforePrepay) {
+        lowestBalanceBeforePrepay = balanceExclPrepay;
       }
 
       const dateStr =
@@ -809,6 +823,7 @@ class CashFlowApp {
       totalInflow,
       totalOutflow,
       lowestBalance,
+      lowestBalanceBeforePrepay,
       excess,
       startingBalance
     };
@@ -1419,9 +1434,8 @@ class CashFlowApp {
     const prepay = data.prepayment || { loanPrepay: 0, extraMF: 0 };
     const safetyBuffer = this.state ? this.state.settings.safetyBuffer : DEFAULT_SETTINGS.safetyBuffer;
 
-    // Excess is computed WITHOUT prepayments factored in, so recalculate
-    // Recompute projection without prepayments
-    const excessBeforePrepay = projection.lowestBalance - safetyBuffer + (prepay.loanPrepay || 0) + (prepay.extraMF || 0);
+    // Use the lowest balance computed WITHOUT prepayments to find the true excess
+    const excessBeforePrepay = projection.lowestBalanceBeforePrepay - safetyBuffer;
 
     const remaining = excessBeforePrepay - (prepay.loanPrepay || 0) - (prepay.extraMF || 0);
 
