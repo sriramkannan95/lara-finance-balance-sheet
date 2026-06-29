@@ -1,9 +1,9 @@
 // ============================================================
-// Firebase Configuration — CashFlow Pulse
+// Firebase Configuration — LaRa Finance Balance Sheet Projector
 // ============================================================
 // INSTRUCTIONS:
 // 1. Go to https://console.firebase.google.com
-// 2. Create a new project (e.g., "CashFlow Pulse")
+// 2. Create a new project (e.g., "LaRa Finance")
 // 3. Go to Project Settings → General → Your Apps → Add Web App
 // 4. Copy the firebaseConfig object and paste it below
 // 5. Enable Authentication → Sign-in method → Google

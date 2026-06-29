@@ -1,4 +1,4 @@
-# CashFlow Pulse — Firebase + GitHub Pages Setup Guide
+# LaRa Finance — Balance Sheet Projector — Firebase + GitHub Pages Setup Guide
 
 Follow these steps to get your app live on the internet with cloud sync.
 
@@ -9,12 +9,12 @@ Follow these steps to get your app live on the internet with cloud sync.
 ### Step 1: Create Firebase Project
 1. Go to **[console.firebase.google.com](https://console.firebase.google.com)**
 2. Click **"Add project"**
-3. Name it `cashflow-pulse` (or anything you like)
+3. Name it `lara-finance` (or anything you like)
 4. Disable Google Analytics (not needed) → Click **Create project**
 
 ### Step 2: Register Web App
 1. In the project dashboard, click the **Web icon** (`</>`)
-2. App nickname: `CashFlow Pulse`
+2. App nickname: `LaRa Finance`
 3. ☐ Don't check "Firebase Hosting" (we'll use GitHub Pages)
 4. Click **Register app**
 5. You'll see a `firebaseConfig` object — **copy it**
@@ -25,9 +25,9 @@ Follow these steps to get your app live on the internet with cloud sync.
 ```js
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSy...",          // paste yours
-  authDomain: "cashflow-pulse-xxxxx.firebaseapp.com",
-  projectId: "cashflow-pulse-xxxxx",
-  storageBucket: "cashflow-pulse-xxxxx.firebasestorage.app",
+  authDomain: "lara-finance-xxxxx.firebaseapp.com",
+  projectId: "lara-finance-xxxxx",
+  storageBucket: "lara-finance-xxxxx.firebasestorage.app",
   messagingSenderId: "123456789",
   appId: "1:123456789:web:abc123"
 };
@@ -70,7 +70,7 @@ service cloud.firestore {
 
 ### Step 1: Create GitHub Repository
 1. Go to **[github.com/new](https://github.com/new)**
-2. Repository name: `cashflow-pulse`
+2. Repository name: `lara-finance`
 3. Set to **Private** (your financial data URLs won't be visible)
 4. Click **Create repository**
 
@@ -82,7 +82,7 @@ git init
 git add index.html style.css app.js firebase-config.js firebase-sync.js
 git commit -m "Initial commit"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/cashflow-pulse.git
+git remote add origin https://github.com/YOUR_USERNAME/lara-finance.git
 git push -u origin main
 ```
 
@@ -91,7 +91,7 @@ git push -u origin main
 2. Source: **Deploy from a branch**
 3. Branch: `main` / `/(root)`
 4. Click **Save**
-5. Wait ~1 minute, your app will be at: `https://YOUR_USERNAME.github.io/cashflow-pulse/`
+5. Wait ~1 minute, your app will be at: `https://YOUR_USERNAME.github.io/lara-finance/`
 
 ### Step 4: Add Domain to Firebase
 1. Go back to **Firebase Console → Authentication → Settings**

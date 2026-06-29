@@ -1,5 +1,5 @@
 // ============================================================
-// Firebase Sync Module — CashFlow Pulse
+// Firebase Sync Module — LaRa Finance Balance Sheet Projector
 // ============================================================
 // Handles: Google Auth, Firestore real-time sync, offline fallback
 // ============================================================

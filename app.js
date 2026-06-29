@@ -1,5 +1,5 @@
 // ============================================================================
-// CashFlow Pulse — Complete Application Logic
+// LaRa Finance — Balance Sheet Projector — Complete Application Logic
 // ============================================================================
 
 import {
