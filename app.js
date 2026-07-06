@@ -1422,16 +1422,14 @@ class CashFlowApp {
     recurringHeader.innerHTML = '<span class="fp-section-icon">📋</span> This Month\'s Transactions';
     container.appendChild(recurringHeader);
 
-    const fixedIds = ['sips', 'rd', 'dad', 'lavanya'];
+    const fixedIds = ['sips', 'dad', 'lavanya'];
     const labels = {
       sips: 'SIPs',
-      rd: 'Recurring Deposit',
       dad: 'Dad Allowance',
       lavanya: 'Lavanya Contribution'
     };
     const icons = {
       sips: '📈',
-      rd: '🏦',
       dad: '👨‍👧',
       lavanya: '💰'
     };
