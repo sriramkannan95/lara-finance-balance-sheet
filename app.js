@@ -199,6 +199,7 @@ function generateMonthlyTemplate(year, month) {
     { id: 'idfc', day: 3, description: 'IDFC Card Auto-Pay', billDate: '22nd prev month', billGenDay: 22, billGenMonth: 'prev', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'sbi_sriram', day: 4, description: 'SBI Sriram Auto-Pay', billDate: '18th prev month', billGenDay: 18, billGenMonth: 'prev', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'dad', day: 5, description: 'Dad Allowance', billDate: null, category: 'Income', type: 'inflow', amount: 40000, editable: true, isFixed: true },
+    { id: 'food_card', day: 1, description: 'Food Card', billDate: null, category: 'Expense', type: 'outflow', amount: 12000, editable: true, isFixed: true },
     { id: 'sips', day: 1, description: 'SIPs', billDate: null, category: 'Investment', type: 'outflow', amount: 10000, editable: true, isFixed: true },
     { id: 'rd', day: 17, description: 'Recurring Deposit', billDate: null, category: 'Investment', type: 'outflow', amount: 3900, editable: true, isFixed: true },
     { id: 'icici', day: 17, description: 'ICICI Cards Auto-Pay', billDate: '2nd curr month', billGenDay: 2, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
@@ -438,6 +439,34 @@ class CashFlowApp {
           }
         }
       });
+
+      // Migrate Food Card: add as recurring transaction for months >= 2026-08
+      const monthNum = year * 100 + month; // e.g. 202608
+      if (monthNum >= 202608 && !monthData.transactions.find(tx => tx.id === 'food_card')) {
+        const foodCardDate = year + '-' + String(month).padStart(2, '0') + '-01';
+        monthData.transactions.push({
+          id: 'food_card',
+          date: foodCardDate,
+          description: 'Food Card',
+          category: 'Expense',
+          type: 'outflow',
+          amount: 12000,
+          editable: true,
+          isFixed: true,
+          paidEarly: false
+        });
+        // Remove any matching one-time entry for Food card
+        if (monthData.oneTimeEntries) {
+          const before = monthData.oneTimeEntries.length;
+          monthData.oneTimeEntries = monthData.oneTimeEntries.filter(
+            ot => ot.description.toLowerCase() !== 'food card'
+          );
+          if (monthData.oneTimeEntries.length !== before) {
+            // Preserve the amount from the one-time entry if it existed
+          }
+        }
+        modified = true;
+      }
     });
 
     if (modified) {
