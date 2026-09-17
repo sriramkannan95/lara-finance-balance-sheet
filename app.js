@@ -194,6 +194,10 @@ function generateMonthlyTemplate(year, month) {
   // NOTE: Salary and House EMI are NOT transactions — they happen at the
   // cycle boundary (end of month) and belong to the NEXT month's cycle.
   // They are tracked as nextSalary / nextEMI in the month data.
+  const isOct2026Onwards = year > 2026 || (year === 2026 && month >= 9);
+  const rdDay = isOct2026Onwards ? 1 : 17;
+  const rdAmount = isOct2026Onwards ? 3400 : 3900;
+
   const transactions = [
     { id: 'lavanya', day: 1, description: 'Lavanya Contribution', billDate: null, category: 'Income', type: 'inflow', amount: 35000, editable: true, isFixed: true },
     { id: 'idfc', day: 3, description: 'IDFC Card Auto-Pay', billDate: '22nd prev month', billGenDay: 22, billGenMonth: 'prev', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
@@ -201,7 +205,7 @@ function generateMonthlyTemplate(year, month) {
     { id: 'dad', day: 5, description: 'Dad Allowance', billDate: null, category: 'Income', type: 'inflow', amount: 40000, editable: true, isFixed: true },
     { id: 'food_card', day: 1, description: 'Food Card', billDate: null, category: 'Expense', type: 'outflow', amount: 12000, editable: true, isFixed: true },
     { id: 'sips', day: 1, description: 'SIPs', billDate: null, category: 'Investment', type: 'outflow', amount: 10000, editable: true, isFixed: true },
-    { id: 'rd', day: 17, description: 'Recurring Deposit', billDate: null, category: 'Investment', type: 'outflow', amount: 3900, editable: true, isFixed: true },
+    { id: 'rd', day: rdDay, description: 'Recurring Deposit', billDate: null, category: 'Investment', type: 'outflow', amount: rdAmount, editable: true, isFixed: true },
     { id: 'icici', day: 17, description: 'ICICI Cards Auto-Pay', billDate: '2nd curr month', billGenDay: 2, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'sbi_lava', day: 20, description: 'SBI Lava Auto-Pay', billDate: '3rd curr month', billGenDay: 3, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false },
     { id: 'hdfc', day: 29, description: 'HDFC Card Auto-Pay', billDate: '13th curr month', billGenDay: 13, billGenMonth: 'curr', category: 'Credit Card', type: 'outflow', amount: 0, editable: true, isFixed: false }
@@ -418,16 +422,44 @@ class CashFlowApp {
         modified = true;
       }
 
-      // Migrate RD to Day 17
+      // Migrate RD:
+      // Prior to Oct 2026: 17th of every month, ₹3,900
+      // From Oct 2026 onwards: 1st of every month, ₹3,400
+      const monthNum = year * 100 + month; // e.g. 202610
+      const isOct2026Onwards = monthNum >= 202610;
+      const expectedRdDay = isOct2026Onwards ? '01' : '17';
+      const expectedRdAmount = isOct2026Onwards ? 3400 : 3900;
+      const expectedRdDate = year + '-' + String(month).padStart(2, '0') + '-' + expectedRdDay;
+
+      let rdFound = false;
       monthData.transactions.forEach(tx => {
         if (tx.id === 'rd') {
-          const expectedDate = year + '-' + String(month).padStart(2, '0') + '-17';
-          if (tx.date !== expectedDate) {
-            tx.date = expectedDate;
+          rdFound = true;
+          if (tx.date !== expectedRdDate) {
+            tx.date = expectedRdDate;
+            modified = true;
+          }
+          if (tx.amount !== expectedRdAmount) {
+            tx.amount = expectedRdAmount;
             modified = true;
           }
         }
       });
+
+      if (!rdFound && isOct2026Onwards) {
+        monthData.transactions.push({
+          id: 'rd',
+          date: expectedRdDate,
+          description: 'Recurring Deposit',
+          category: 'Investment',
+          type: 'outflow',
+          amount: expectedRdAmount,
+          editable: true,
+          isFixed: true,
+          paidEarly: false
+        });
+        modified = true;
+      }
 
       // Migrate SIPs to Day 1
       monthData.transactions.forEach(tx => {
@@ -441,7 +473,6 @@ class CashFlowApp {
       });
 
       // Migrate Food Card: add as recurring transaction for months >= 2026-08
-      const monthNum = year * 100 + month; // e.g. 202608
       if (monthNum >= 202608 && !monthData.transactions.find(tx => tx.id === 'food_card')) {
         const foodCardDate = year + '-' + String(month).padStart(2, '0') + '-01';
         monthData.transactions.push({
